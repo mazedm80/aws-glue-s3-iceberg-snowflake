@@ -31,6 +31,7 @@ def setSparkIcebergConf(env: str) -> SparkConf:
 # Initialize Glue context and Spark session
 conf = setSparkIcebergConf(env)
 sc = SparkContext(conf=conf)
+sc.setLogLevel("INFO")
 glueContext = GlueContext(sc)
 spark = glueContext.spark_session
 logger = glueContext.get_logger()
@@ -67,9 +68,14 @@ schema = StructType([
 ])
 
 logger.info(f"Reading CSV data from: {input_bucket}")
-# df_original = spark.read.csv(f"s3://{input_bucket}/Cancelled_Diverted_2023.csv", header=True, schema=schema)
-df_original = spark.read.csv("/home/hadoop/workspace/src/Cancelled_Diverted_2023.csv", header=False, schema=schema)
-logger.info("CSV data read successfully. Transforming data...")
+
+try:
+  df_original = spark.read.csv(f"s3://{input_bucket}/Cancelled_Diverted_2023.csv", header=True, schema=schema)
+except Exception as e:
+  logger.error(f"Error reading CSV data: {e}")
+  raise e
+
+logger.info("CSV data read successfully. Starting transformation...")
 
 df_transformed = df_original.withColumn("cancelled", col("cancelled").cast(BooleanType())) \
     .withColumn("diverted", col("diverted").cast(BooleanType())) \
@@ -83,11 +89,19 @@ df_clean = df_transformed.dropna(subset=["flight_date", "airline", "dep_airport"
 df_final = df_clean.dropDuplicates(["flight_date", "airline", "tail_number", "dep_airport", "arr_airport"])
 df_sorted = df_final.orderBy("flight_date", "airline", "dep_airport")
 
-spark.sql(f"CREATE NAMESPACE IF NOT EXISTS s3tablesbucket.{namespace}")
-df_sorted.writeTo(f"s3tablesbucket.{namespace}.cancelled_diverted") \
-  .using("Iceberg") \
-  .tableProperty("format-version", "2") \
-  .createOrReplace()
+logger.info("Data transformation complete. Writing to Iceberg table...")
+
+try:
+  spark.sql(f"CREATE NAMESPACE IF NOT EXISTS s3tablesbucket.{namespace}")
+  
+  df_sorted.writeTo(f"s3tablesbucket.{namespace}.cancelled_diverted") \
+    .using("Iceberg") \
+    .tableProperty("format-version", "2") \
+    .createOrReplace()
+except Exception as e:
+  logger.error(f"Error writing to Iceberg table: {e}")
+  raise e
 
 logger.info("Data written to Iceberg table successfully.")
+
 job.commit()

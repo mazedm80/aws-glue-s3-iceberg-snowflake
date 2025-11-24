@@ -31,6 +31,7 @@ def setSparkIcebergConf(env: str) -> SparkConf:
 # Initialize Glue context and Spark session
 conf = setSparkIcebergConf(env)
 sc = SparkContext(conf=conf)
+sc.setLogLevel("INFO")
 glueContext = GlueContext(sc)
 spark = glueContext.spark_session
 logger = glueContext.get_logger()
@@ -53,8 +54,15 @@ schema = StructType([
     StructField("airport_id", StringType(), True),
 ])
 
-# df_original = spark.read.csv(f"s3://{input_bucket}/weather_meteo_by_airport.csv", header=True, schema=schema)
-df_original = spark.read.csv("/home/hadoop/workspace/src/weather_meteo_by_airport.csv", header=False, schema=schema)
+logger.info(f"Reading CSV data from: {input_bucket}")
+
+try:
+  df_original = spark.read.csv(f"s3://{input_bucket}/weather_meteo_by_airport.csv", header=True, schema=schema)
+except Exception as e:
+  logger.error(f"Error reading CSV data: {e}")
+  raise e
+
+logger.info("CSV data read successfully. Starting transformation...")
 
 df_transformed = df_original.withColumn("airport_id", upper(trim(col("airport_id")))) \
     .withColumn("processed_timestamp", current_timestamp())
@@ -63,10 +71,19 @@ df_clean = df_transformed.dropna(subset=["weather_date", "airport_id"])
 df_final = df_clean.dropDuplicates(["weather_date", "airport_id"])
 df_sorted = df_final.orderBy("weather_date", "airport_id")
 
-spark.sql(f"CREATE NAMESPACE IF NOT EXISTS s3tablesbucket.{namespace}")
-df_sorted.writeTo(f"s3tablesbucket.{namespace}.weather") \
-  .using("Iceberg") \
-  .tableProperty("format-version", "2") \
-  .createOrReplace()
+logger.info("Data transformation complete. Writing to Iceberg table...")
+
+try:
+  spark.sql(f"CREATE NAMESPACE IF NOT EXISTS s3tablesbucket.{namespace}")
+  
+  df_sorted.writeTo(f"s3tablesbucket.{namespace}.weather") \
+    .using("Iceberg") \
+    .tableProperty("format-version", "2") \
+    .createOrReplace()
+except Exception as e:
+  logger.error(f"Error writing to Iceberg table: {e}")
+  raise e
+
+logger.info("Data written to Iceberg table successfully.")
 
 job.commit()
