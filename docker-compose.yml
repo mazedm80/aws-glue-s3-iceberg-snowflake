@@ -1,0 +1,19 @@
+name: Glue Pyspark
+
+services:
+    aws-glue:
+        image: public.ecr.aws/glue/aws-glue-libs:5
+        container_name: "aws-glue5-spark"
+        stdin_open: true
+        tty: true
+        env_file:
+            - .env
+        volumes:
+            - ./aws-config:/home/hadoop/.aws
+            - ./workspace:/home/hadoop/workspace/
+        environment:
+            - AWS_PROFILE=${AWS_PROFILE}
+            - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+            - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+            - AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION}
+        entrypoint: pyspark
