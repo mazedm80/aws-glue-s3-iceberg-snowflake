@@ -69,10 +69,16 @@ flight_performance = flights_df.groupBy(
 
 logger.info("Flight performance analysis completed. Writing to gold table...")
 # Write to gold table
-flight_performance.writeTo(f"s3tablesbucket.{namespace}.flight_performance_analytics") \
-    .using("Iceberg") \
-    .tableProperty("format-version", "2") \
-    .createOrReplace()
+try:
+    spark.sql(f"CREATE NAMESPACE IF NOT EXISTS s3tablesbucket.{namespace}")
+    spark.sql(f"DROP TABLE IF EXISTS s3tablesbucket.{namespace}.flight_performance_analytics")
+    flight_performance.writeTo(f"s3tablesbucket.{namespace}.flight_performance_analytics") \
+      .using("Iceberg") \
+      .tableProperty("format-version", "2") \
+      .createOrReplace()
+except Exception as e:
+    logger.error(f"Error writing to gold table: {e}")
+    raise e
 
 logger.info("Data written to gold table successfully.")
 

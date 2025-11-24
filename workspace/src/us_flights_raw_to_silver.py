@@ -71,7 +71,7 @@ schema = StructType([
 logger.info(f"Reading CSV data from: {input_bucket}")
 
 try:
-  df_original = spark.read.csv(f"s3://{input_bucket}/US_flights_2023.csv", header=True, schema=schema)
+  df_original = spark.read.csv(f"s3://{input_bucket}/data/US_flights_2023.csv", header=True, schema=schema)
 except Exception as e:
   logger.error(f"Error reading CSV data: {e}")
   raise e
