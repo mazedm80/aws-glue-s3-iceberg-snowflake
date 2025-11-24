@@ -25,3 +25,11 @@ variable "aws_region" {
   description = "The default region."
   type        = string
 }
+
+output "bucket_name" {
+  value = aws_s3_bucket.s3-airport-raw-dev.bucket
+}
+
+output "table_bucket_arn" {
+  value = aws_s3tables_table_bucket.s3-airport-stages-dev.arn
+}
