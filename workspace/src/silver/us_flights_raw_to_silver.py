@@ -8,26 +8,28 @@ from pyspark.sql.functions import col, current_timestamp, upper, trim
 from pyspark.sql.types import BooleanType, DateType, FloatType, IntegerType, StringType, StructField, StructType
 
 # Get job parameters
-args = getResolvedOptions(sys.argv,['JOB_NAME', 'input_bucket', 'output_bucket_arn', 'namespace'])
+args = getResolvedOptions(sys.argv,['JOB_NAME', 'input_bucket', 'output_bucket_arn', 'namespace', 'env'])
 input_bucket = args['input_bucket']
 output_bucket_arn = args['output_bucket_arn']
 namespace = args['namespace']
+env = args['env']
 
 # Set Spark configuration for Iceberg
-def setSparkIcebergConf() -> SparkConf:
+def setSparkIcebergConf(env: str) -> SparkConf:
   conf_list = [
-    ("spark.jars", "/home/hadoop/workspace/src/s3-tables-catalog-for-iceberg-runtime-0.1.5.jar"),
-    ("spark.sql.catalog.s3tablesbucket","org.apache.iceberg.spark.SparkCatalog"),
-    ("spark.sql.catalog.s3tablesbucket.catalog-impl", "software.amazon.s3tables.iceberg.S3TablesCatalog"),
-    ("spark.sql.catalog.s3tablesbucket.warehouse", output_bucket_arn),
-    ("spark.sql.defaultCatalog", "s3tablesbucket"),
-    ("spark.sql.extensions", "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions"),
-  ]
+      ("spark.sql.catalog.s3tablesbucket","org.apache.iceberg.spark.SparkCatalog"),
+      ("spark.sql.catalog.s3tablesbucket.catalog-impl", "software.amazon.s3tables.iceberg.S3TablesCatalog"),
+      ("spark.sql.catalog.s3tablesbucket.warehouse", output_bucket_arn),
+      ("spark.sql.defaultCatalog", "s3tablesbucket"),
+      ("spark.sql.extensions", "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions"),
+    ]
+  if env == "dev":
+    conf_list.append(("spark.jars", "/home/hadoop/workspace/src/s3-tables-catalog-for-iceberg-runtime-0.1.5.jar"))
   spark_conf = SparkConf().setAll(conf_list)
   return spark_conf
 
 # Initialize Glue context and Spark session
-conf = setSparkIcebergConf()
+conf = setSparkIcebergConf(env)
 sc = SparkContext(conf=conf)
 glueContext = GlueContext(sc)
 spark = glueContext.spark_session
